@@ -222,16 +222,19 @@ export default function Cart() {
 
   setPlacingOrder(true);
 
-  const storedUser = JSON.parse(
-  localStorage.getItem("smartdine_user") || "null"
-);
+    let storedUser = null;
+    try {
+      storedUser = JSON.parse(localStorage.getItem("smartdine_user") || "null");
+    } catch {
+      storedUser = null;
+    }
 
-const userId = storedUser?.id;
+    const userId = Number(storedUser?.id);
 
-if (!userId) {
-  alert("Please login again before placing your order.");
-  setPlacingOrder(false);
-  return;
+    if (!Number.isInteger(userId) || userId <= 0) {
+    alert("Please login again before placing your order.");
+    setPlacingOrder(false);
+    return;
 }
 
 try {
@@ -264,14 +267,23 @@ const savedOrder = await apiRequest("/orders", {
   }),
 });
 
+  const backendOrderId = Number(savedOrder?.id);
+
+  if (!Number.isInteger(backendOrderId) || backendOrderId <= 0) {
+    throw new Error("The server did not return a valid order ID.");
+  }
+
   const order = {
-  ...savedOrder,
-  id: `SD-${String(savedOrder.id).padStart(6, "0")}`,
-  backendOrderId: savedOrder.id,
-  table: tableNumber,
-  items: cart,
-  status: "Order Placed",
-};
+    ...savedOrder,
+    id: `SD-${String(backendOrderId).padStart(6, "0")}`,
+    backendOrderId,
+    table: tableNumber,
+    items: cart,
+    subtotal,
+    tax,
+    total,
+    status: "Order Placed",
+  };
 
   localStorage.setItem(
     "smartdine_current_order",

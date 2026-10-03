@@ -202,9 +202,16 @@ export default function Orders() {
       );
 
       if (currentOrder?.id === orderId) {
+        const currentOrderUpdate = {
+          ...currentOrder,
+          ...updatedOrder,
+          backendOrderId:
+            currentOrder.backendOrderId ?? updatedOrder.backendOrderId,
+        };
+
         localStorage.setItem(
           "smartdine_current_order",
-          JSON.stringify(updatedOrder)
+          JSON.stringify(currentOrderUpdate)
         );
       }
 

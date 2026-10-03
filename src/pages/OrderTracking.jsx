@@ -46,14 +46,64 @@ const STATUS_STEPS = [
   },
 ];
 
+const BACKEND_STATUS_MAP = {
+  PLACED: "Order Placed",
+  ACCEPTED: "Kitchen Accepted",
+  PREPARING: "Preparing",
+  READY: "Ready",
+  SERVED: "Served",
+};
+
+const STATUS_RANK = Object.fromEntries(
+  STATUS_STEPS.map((step, index) => [step.id, index])
+);
+
+function getBackendOrderId(savedOrder) {
+  const candidates = [
+    savedOrder?.backendOrderId,
+    typeof savedOrder?.id === "number" ? savedOrder.id : null,
+    typeof savedOrder?.id === "string" && /^\d+$/.test(savedOrder.id)
+      ? Number(savedOrder.id)
+      : null,
+    typeof savedOrder?.id === "string" && /^SD-\d+$/i.test(savedOrder.id)
+      ? Number(savedOrder.id.replace(/^SD-/i, ""))
+      : null,
+  ];
+
+  const backendOrderId = candidates.find(
+    (candidate) => Number.isInteger(candidate) && candidate > 0
+  );
+
+  return backendOrderId || null;
+}
+
 export default function OrderTracking() {
   const navigate = useNavigate();
 
   const [order, setOrder] = useState(() => {
     try {
-      return JSON.parse(
+      const savedOrder = JSON.parse(
         localStorage.getItem("smartdine_current_order")
       );
+      const backendOrderId = getBackendOrderId(savedOrder);
+
+      if (!savedOrder || !backendOrderId) return savedOrder;
+
+      const normalizedOrder = {
+        ...savedOrder,
+        backendOrderId,
+        id:
+          typeof savedOrder.id === "string" && savedOrder.id.startsWith("SD-")
+            ? savedOrder.id
+            : `SD-${String(backendOrderId).padStart(6, "0")}`,
+      };
+
+      localStorage.setItem(
+        "smartdine_current_order",
+        JSON.stringify(normalizedOrder)
+      );
+
+      return normalizedOrder;
     } catch {
       return null;
     }
@@ -62,33 +112,56 @@ export default function OrderTracking() {
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
-  if (!order?.backendOrderId) return;
+  const backendOrderId = getBackendOrderId(order);
+  if (!backendOrderId) return;
+
+  if (order.backendOrderId !== backendOrderId) {
+    const recoveredOrder = {
+      ...order,
+      backendOrderId,
+      id:
+        typeof order.id === "string" && order.id.startsWith("SD-")
+          ? order.id
+          : `SD-${String(backendOrderId).padStart(6, "0")}`,
+    };
+
+    setOrder(recoveredOrder);
+    localStorage.setItem(
+      "smartdine_current_order",
+      JSON.stringify(recoveredOrder)
+    );
+  }
 
   const loadBackendStatus = async () => {
     try {
       const latestOrder = await apiRequest(
-        `/orders/${order.backendOrderId}`
+        `/orders/${backendOrderId}`
       );
-
-      const backendStatusMap = {
-        PLACED: "Order Placed",
-        ACCEPTED: "Kitchen Accepted",
-        PREPARING: "Preparing",
-        READY: "Ready",
-        SERVED: "Served",
-      };
 
       const displayStatus =
-        backendStatusMap[latestOrder.status] || "Order Placed";
+        BACKEND_STATUS_MAP[latestOrder.status] || "Order Placed";
 
-      setOrder((currentOrder) => ({
-        ...currentOrder,
-        status: displayStatus,
-      }));
+      setOrder((currentOrder) => {
+        const currentStatus = currentOrder?.status || "Order Placed";
+        const status =
+          STATUS_RANK[currentStatus] > STATUS_RANK[displayStatus]
+            ? currentStatus
+            : displayStatus;
+        const updatedOrder = {
+          ...currentOrder,
+          backendOrderId,
+          status,
+        };
 
-      const index = STATUS_STEPS.findIndex(
-        (step) => step.id === displayStatus
-      );
+        localStorage.setItem(
+          "smartdine_current_order",
+          JSON.stringify(updatedOrder)
+        );
+
+        return updatedOrder;
+      });
+
+      const index = STATUS_STEPS.findIndex((step) => step.id === displayStatus);
 
       setActiveStep(index >= 0 ? index : 0);
     } catch (error) {
@@ -98,11 +171,41 @@ export default function OrderTracking() {
 
   loadBackendStatus();
 
+  const handleLocalOrderUpdate = () => {
+    try {
+      const latestOrder = JSON.parse(
+        localStorage.getItem("smartdine_current_order")
+      );
+
+      if (getBackendOrderId(latestOrder) !== backendOrderId) return;
+
+      const latestStatus = latestOrder?.status;
+      if (!STATUS_RANK.hasOwnProperty(latestStatus)) return;
+
+      setOrder((currentOrder) => ({
+        ...currentOrder,
+        ...latestOrder,
+        backendOrderId,
+      }));
+      setActiveStep(STATUS_RANK[latestStatus]);
+    } catch {
+      // Keep the current tracking state if local order data is invalid.
+    }
+  };
+
+  window.addEventListener("smartdine-order-updated", handleLocalOrderUpdate);
+
   const interval = setInterval(() => {
     loadBackendStatus();
   }, 5000);
 
-  return () => clearInterval(interval);
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener(
+      "smartdine-order-updated",
+      handleLocalOrderUpdate
+    );
+  };
 }, [order?.backendOrderId]);
 
   /*
