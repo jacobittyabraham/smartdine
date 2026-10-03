@@ -22,6 +22,7 @@ import {
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../lib/api";
 
 const ORDER_STATUSES = [
   "Order Placed",
@@ -117,6 +118,9 @@ export default function Staff() {
     useState(null);
 
   const [isRefreshing, setIsRefreshing] =
+    useState(false);
+
+  const [updatingOrderStatus, setUpdatingOrderStatus] =
     useState(false);
 
   const tableNumber =
@@ -259,7 +263,7 @@ export default function Staff() {
     }, 2500);
   };
 
-  const updateOrderStatus = (
+  const updateOrderStatus = async (
     nextStatus
   ) => {
     if (!currentOrder) {
@@ -271,29 +275,86 @@ export default function Staff() {
       return;
     }
 
-    const updatedOrder = {
-      ...currentOrder,
-      status: nextStatus,
-      updatedAt:
-        new Date().toISOString(),
-    };
-
-    localStorage.setItem(
-      "smartdine_current_order",
-      JSON.stringify(updatedOrder)
+    const backendOrderId = Number(
+      currentOrder.backendOrderId ||
+        (typeof currentOrder.id === "number"
+          ? currentOrder.id
+          : null) ||
+        (typeof currentOrder.id === "string" &&
+        /^\d+$/.test(currentOrder.id)
+          ? currentOrder.id
+          : null) ||
+        (typeof currentOrder.id === "string" &&
+        /^SD-\d+$/i.test(currentOrder.id)
+          ? currentOrder.id.replace(/^SD-/i, "")
+          : null)
     );
 
-    setCurrentOrder(updatedOrder);
+    if (
+      !Number.isInteger(backendOrderId) ||
+      backendOrderId <= 0
+    ) {
+      showNotification(
+        "This order has no valid backend order ID.",
+        "error"
+      );
+      return;
+    }
 
-    window.dispatchEvent(
-      new Event(
-        "smartdine-order-updated"
-      )
-    );
+    const backendStatus = {
+      "Kitchen Accepted": "ACCEPTED",
+      Preparing: "PREPARING",
+      Ready: "READY",
+      Served: "SERVED",
+    }[nextStatus];
 
-    showNotification(
-      `Order moved to ${nextStatus}.`
-    );
+    try {
+      setUpdatingOrderStatus(true);
+
+      const savedOrder = await apiRequest(
+        `/orders/${backendOrderId}/status?status=${backendStatus}`,
+        { method: "PUT" }
+      );
+
+      const updatedOrder = {
+        ...currentOrder,
+        ...savedOrder,
+        id: currentOrder.id,
+        backendOrderId,
+        status: nextStatus,
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      localStorage.setItem(
+        "smartdine_current_order",
+        JSON.stringify(updatedOrder)
+      );
+
+      setCurrentOrder(updatedOrder);
+
+      window.dispatchEvent(
+        new Event(
+          "smartdine-order-updated"
+        )
+      );
+
+      showNotification(
+        `Order moved to ${nextStatus}.`
+      );
+    } catch (error) {
+      console.error(
+        "Failed to update dashboard order status:",
+        error
+      );
+      showNotification(
+        error.message ||
+          "Could not update the order status.",
+        "error"
+      );
+    } finally {
+      setUpdatingOrderStatus(false);
+    }
   };
 
   const updateServiceRequest = (
@@ -1293,6 +1354,7 @@ export default function Staff() {
 
                       <button
                         className="sd-staff-primary-action"
+                        disabled={updatingOrderStatus}
                         onClick={() =>
                           updateOrderStatus(
                             nextOrderStatus
