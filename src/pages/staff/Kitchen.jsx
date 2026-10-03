@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../../lib/api";
 
 
 const STATUS_ORDER = [
@@ -91,6 +92,7 @@ export default function Kitchen() {
   const [now, setNow] = useState(Date.now());
   const [notification, setNotification] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
 
   /*
@@ -208,31 +210,72 @@ export default function Kitchen() {
 
     This is the main Kitchen → Customer connection.
   */
-  const updateOrder = (nextStatus) => {
-    if (!order) return;
-
-    const updated = {
-      ...order,
-      status: nextStatus,
-      updatedAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem(
-      "smartdine_current_order",
-      JSON.stringify(updated)
+  const updateOrder = async (nextStatus) => {
+    const backendOrderId = Number(
+      order?.backendOrderId ||
+        (typeof order?.id === "number" ? order.id : null) ||
+        (typeof order?.id === "string" && /^\d+$/.test(order.id)
+          ? order.id
+          : null) ||
+        (typeof order?.id === "string" && /^SD-\d+$/i.test(order.id)
+          ? order.id.replace(/^SD-/i, "")
+          : null)
     );
 
-    setOrder(updated);
+    if (!order || !Number.isInteger(backendOrderId) || backendOrderId <= 0) {
+      showNotification("This order has no valid backend order ID.");
+      return;
+    }
 
-    window.dispatchEvent(
-      new Event("smartdine-order-updated")
-    );
+    try {
+      setUpdatingStatus(true);
 
-    showNotification(
-      `Order #${order.id} moved to ${statusLabel(
-        nextStatus
-      )}`
-    );
+      const savedOrder = await apiRequest(
+        `/orders/${backendOrderId}/status?status=${encodeURIComponent(
+          nextStatus === "Kitchen Accepted"
+            ? "ACCEPTED"
+            : nextStatus === "Preparing"
+              ? "PREPARING"
+              : nextStatus === "Ready"
+                ? "READY"
+                : "SERVED"
+        )}`,
+        { method: "PUT" }
+      );
+
+      const updated = {
+        ...order,
+        ...savedOrder,
+        id: order.id,
+        backendOrderId,
+        status: nextStatus,
+        updatedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(
+        "smartdine_current_order",
+        JSON.stringify(updated)
+      );
+
+      setOrder(updated);
+
+      window.dispatchEvent(
+        new Event("smartdine-order-updated")
+      );
+
+      showNotification(
+        `Order #${order.id} moved to ${statusLabel(
+          nextStatus
+        )}`
+      );
+    } catch (error) {
+      console.error("Failed to update order status:", error);
+      showNotification(
+        error.message || "Could not update the order status."
+      );
+    } finally {
+      setUpdatingStatus(false);
+    }
   };
 
 
@@ -981,6 +1024,7 @@ export default function Kitchen() {
 
                     <button
                       className="sd-kitchen-secondary"
+                      disabled={updatingStatus}
                       onClick={() =>
                         updateOrder(
                           STATUS_ORDER[
@@ -999,6 +1043,7 @@ export default function Kitchen() {
 
                     <button
                       className="sd-kitchen-primary"
+                      disabled={updatingStatus}
                       onClick={() =>
                         updateOrder(
                           nextStatus
