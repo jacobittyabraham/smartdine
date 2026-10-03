@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../lib/api";
 
 const STATUS_STEPS = [
   {
@@ -61,16 +62,48 @@ export default function OrderTracking() {
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
-    if (!order) return;
+  if (!order?.backendOrderId) return;
 
-    const savedStatus = order.status || "Order Placed";
+  const loadBackendStatus = async () => {
+    try {
+      const latestOrder = await apiRequest(
+        `/orders/${order.backendOrderId}`
+      );
 
-    const index = STATUS_STEPS.findIndex(
-      (step) => step.id === savedStatus
-    );
+      const backendStatusMap = {
+        PLACED: "Order Placed",
+        ACCEPTED: "Kitchen Accepted",
+        PREPARING: "Preparing",
+        READY: "Ready",
+        SERVED: "Served",
+      };
 
-    setActiveStep(index >= 0 ? index : 0);
-  }, [order]);
+      const displayStatus =
+        backendStatusMap[latestOrder.status] || "Order Placed";
+
+      setOrder((currentOrder) => ({
+        ...currentOrder,
+        status: displayStatus,
+      }));
+
+      const index = STATUS_STEPS.findIndex(
+        (step) => step.id === displayStatus
+      );
+
+      setActiveStep(index >= 0 ? index : 0);
+    } catch (error) {
+      console.error("Failed to load order status:", error);
+    }
+  };
+
+  loadBackendStatus();
+
+  const interval = setInterval(() => {
+    loadBackendStatus();
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [order?.backendOrderId]);
 
   /*
     Demo simulation.
@@ -78,42 +111,6 @@ export default function OrderTracking() {
     Later this will be replaced with Socket.IO events
     coming from the kitchen/backend.
   */
-  /*
-  STEP 18.1
-  Listen for real order-status updates from the
-  Kitchen / Staff dashboard.
-
-  The UI stays exactly the same.
-*/
-useEffect(() => {
-  if (!order) return;
-
-  const handleOrderUpdate = () => {
-    try {
-      const latestOrder = JSON.parse(
-        localStorage.getItem("smartdine_current_order")
-      );
-
-      if (!latestOrder) return;
-
-      setOrder(latestOrder);
-    } catch {
-      // Keep the current order if localStorage cannot be read.
-    }
-  };
-
-  window.addEventListener(
-    "smartdine-order-updated",
-    handleOrderUpdate
-  );
-
-  return () => {
-    window.removeEventListener(
-      "smartdine-order-updated",
-      handleOrderUpdate
-    );
-  };
-}, [order]);
 
   const estimatedTime = useMemo(() => {
     const times = [18, 12, 7, 2, 0];
