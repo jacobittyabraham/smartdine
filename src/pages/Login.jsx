@@ -27,7 +27,7 @@ export default function Login() {
       const guestEmail = `guest-${guestId}@smartdine.demo`;
       const guestPassword = `SmartDine-${guestId}`;
 
-      const data = await apiRequest("/auth/register", {
+      const registeredUser = await apiRequest("/auth/register", {
         method: "POST",
         body: JSON.stringify({
           name: "SmartDine Guest",
@@ -36,18 +36,40 @@ export default function Login() {
         }),
       });
 
-      const userId = Number(data?.user?.id);
+      const registeredUserId = Number(registeredUser?.id);
 
-      if (!data?.token || !Number.isInteger(userId) || userId <= 0) {
+      if (
+        !Number.isInteger(registeredUserId) ||
+        registeredUserId <= 0
+      ) {
         throw new Error(
-          "Guest registration did not include a valid user session."
+          "Guest registration did not return a valid user."
         );
       }
 
-      localStorage.setItem("smartdine_token", data.token);
+      const session = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: guestEmail,
+          password: guestPassword,
+        }),
+      });
+
+      const userId = Number(session?.user?.id);
+
+      if (
+        !session?.token ||
+        !Number.isInteger(userId) ||
+        userId <= 0 ||
+        userId !== registeredUserId
+      ) {
+        throw new Error("Guest login did not return a valid user session.");
+      }
+
+      localStorage.setItem("smartdine_token", session.token);
       localStorage.setItem(
         "smartdine_user",
-        JSON.stringify({ ...data.user, id: userId })
+        JSON.stringify({ ...session.user, id: userId })
       );
       navigate("/table");
     } catch (guestError) {
