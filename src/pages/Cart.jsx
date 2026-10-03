@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../lib/api";
+
 
 const ADD_ONS = {
   raita: { name: "Extra Raita", price: 30 },
@@ -143,7 +145,7 @@ export default function Cart() {
     saveCart([]);
   }
 
-  function placeOrder() {
+  async function placeOrder() {
   if (cart.length === 0) return;
 
   const currentMenu = getCurrentMenu();
@@ -220,20 +222,61 @@ export default function Cart() {
 
   setPlacingOrder(true);
 
-  const order = {
-    id: `SD-${Date.now().toString().slice(-6)}`,
-    table: tableNumber,
-    items: cart,
-    subtotal,
-    tax,
-    total,
-    status: "Order Placed",
-    createdAt: new Date().toISOString(),
-  };
-  localStorage.setItem(
-  "smartdine_current_order",
-  JSON.stringify(order)
+  const storedUser = JSON.parse(
+  localStorage.getItem("smartdine_user") || "null"
 );
+
+const userId = storedUser?.id;
+
+if (!userId) {
+  alert("Please login again before placing your order.");
+  setPlacingOrder(false);
+  return;
+}
+
+try {
+  const orderItems = cart.map((item) => ({
+  menuItemId: Number(item.id),
+  itemName: item.name,
+  unitPrice: Number(getUnitPrice(item)),
+  quantity: Number(item.quantity || 1),
+  lineTotal: Number(getLineTotal(item)),
+  customizations: JSON.stringify({
+    addOns: item.addOns || [],
+    spice: item.spice || null,
+    instructions: item.instructions || null,
+  }),
+}));
+
+const savedOrder = await apiRequest("/orders", {
+  method: "POST",
+  body: JSON.stringify({
+    order: {
+      userId,
+      tableNumber: String(tableNumber),
+      subtotal,
+      tax,
+      discount: 0,
+      total,
+      status: "PLACED",
+    },
+    items: orderItems,
+  }),
+});
+
+  const order = {
+  ...savedOrder,
+  id: `SD-${String(savedOrder.id).padStart(6, "0")}`,
+  backendOrderId: savedOrder.id,
+  table: tableNumber,
+  items: cart,
+  status: "Order Placed",
+};
+
+  localStorage.setItem(
+    "smartdine_current_order",
+    JSON.stringify(order)
+  );
 
   window.dispatchEvent(
   new CustomEvent("smartdine-order-created")
@@ -258,6 +301,17 @@ window.dispatchEvent(
 setTimeout(() => {
   navigate("/tracking");
 }, 700);
+
+} catch (error) {
+  console.error("Failed to place order:", error);
+
+  alert(
+    error.message ||
+    "Unable to place your order. Please try again."
+  );
+
+  setPlacingOrder(false);
+}
 }
 
   return (
