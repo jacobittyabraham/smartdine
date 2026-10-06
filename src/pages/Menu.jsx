@@ -64,7 +64,7 @@ const foods = [
   },
   {
     id: 5,
-    name: "Chicken 65",
+    name: "Crispy Chicken 65",
     category: "Starters",
     price: 210,
     time: 14,
@@ -112,33 +112,6 @@ const foods = [
   },
 ];
 
-const IMAGE_FALLBACKS = {
-  "chicken biriyani":
-    "https://images.pexels.com/photos/12737817/pexels-photo-12737817.jpeg?auto=format&fit=crop&w=1200&q=88",
-  "classic chicken biriyani":
-    "https://images.pexels.com/photos/12737817/pexels-photo-12737817.jpeg?auto=format&fit=crop&w=1200&q=88",
-  "malabar chicken biriyani":
-    "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=1200&q=88",
-  "paneer butter masala":
-    "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=1200&q=88",
-  "butter naan":
-    "https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?auto=format&fit=crop&w=1200&q=88",
-  "chicken 65":
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=88",
-};
-
-function normalizeMenuItem(item) {
-  const name = String(item?.name || "").trim().toLowerCase();
-  const legacyFallback =
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=88";
-  const storedImage = item?.image || item?.imageUrl;
-  const image =
-    !storedImage || storedImage === legacyFallback
-      ? IMAGE_FALLBACKS[name]
-      : storedImage;
-
-  return image ? { ...item, image } : item;
-}
 
 
 function getStoredCart() {
@@ -154,9 +127,7 @@ function getStoredMenu() {
       localStorage.getItem("smartdine_menu")
     );
 
-    return Array.isArray(stored)
-      ? stored.map(normalizeMenuItem)
-      : foods;
+    return Array.isArray(stored) ? stored : foods;
   } catch {
     return foods;
   }
