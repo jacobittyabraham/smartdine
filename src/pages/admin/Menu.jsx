@@ -7,6 +7,8 @@ const DEFAULT_MENU = [
     category: "Main Course",
     price: 220,
     description: "Fragrant basmati rice with tender chicken and aromatic spices.",
+    image:
+      "https://images.pexels.com/photos/12737817/pexels-photo-12737817.jpeg?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: true,
   },
@@ -16,6 +18,8 @@ const DEFAULT_MENU = [
     category: "Main Course",
     price: 190,
     description: "Creamy tomato gravy with soft paneer and Indian spices.",
+    image:
+      "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: false,
   },
@@ -25,6 +29,8 @@ const DEFAULT_MENU = [
     category: "Breads",
     price: 45,
     description: "Soft tandoor-baked naan finished with butter.",
+    image:
+      "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: false,
   },
@@ -34,6 +40,8 @@ const DEFAULT_MENU = [
     category: "Starters",
     price: 180,
     description: "Crispy spicy fried chicken with aromatic seasoning.",
+    image:
+      "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: true,
   },
@@ -43,6 +51,8 @@ const DEFAULT_MENU = [
     category: "Beverages",
     price: 70,
     description: "Refreshing lime soda served chilled.",
+    image:
+      "https://images.unsplash.com/photo-1551538827-9c037cb4f32a?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: false,
   },
@@ -52,6 +62,8 @@ const DEFAULT_MENU = [
     category: "Desserts",
     price: 90,
     description: "Soft milk-solid dumplings soaked in sweet syrup.",
+    image:
+      "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=1200&q=88",
     available: true,
     featured: false,
   },

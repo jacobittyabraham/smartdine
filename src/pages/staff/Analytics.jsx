@@ -95,7 +95,7 @@ const SAMPLE_ORDERS = [
     ).toISOString(),
     items: [
       {
-        name: "Crispy Chicken 65",
+        name: "Samosa",
         quantity: 1,
         price: 210,
       },
@@ -121,7 +121,7 @@ const SAMPLE_ORDERS = [
         price: 220,
       },
       {
-        name: "Crispy Chicken 65",
+        name: "Samosa",
         quantity: 1,
         price: 210,
       },
@@ -149,7 +149,7 @@ const POPULAR_DISHES = [
     revenue: 8680,
   },
   {
-    name: "Crispy Chicken 65",
+    name: "Samosa",
     category: "Starters",
     orders: 27,
     revenue: 5670,
