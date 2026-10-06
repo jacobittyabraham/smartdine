@@ -77,6 +77,35 @@ function getBackendOrderId(savedOrder) {
   return backendOrderId || null;
 }
 
+function getStoredUserId() {
+  try {
+    const user = JSON.parse(localStorage.getItem("smartdine_user") || "null");
+    const userId = Number(user?.id);
+    return Number.isInteger(userId) && userId > 0 ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBackendOrder(savedOrder) {
+  const backendOrderId = getBackendOrderId(savedOrder);
+  if (!backendOrderId) return null;
+
+  const status = BACKEND_STATUS_MAP[savedOrder.status] || savedOrder.status;
+
+  return {
+    ...savedOrder,
+    backendOrderId,
+    id: `SD-${String(backendOrderId).padStart(6, "0")}`,
+    table: savedOrder.table ?? savedOrder.tableNumber ?? "Not selected",
+    status: status || "Order Placed",
+    items: savedOrder.items || [],
+    subtotal: Number(savedOrder.subtotal || 0),
+    tax: Number(savedOrder.tax || 0),
+    total: Number(savedOrder.total || 0),
+  };
+}
+
 export default function OrderTracking() {
   const navigate = useNavigate();
 
@@ -112,8 +141,51 @@ export default function OrderTracking() {
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
-  const backendOrderId = getBackendOrderId(order);
-  if (!backendOrderId) return;
+  let cancelled = false;
+  let backendOrderId = getBackendOrderId(order);
+
+  const loadLatestOrder = async () => {
+    if (backendOrderId) return;
+
+    const userId = getStoredUserId();
+    if (!userId) return;
+
+    try {
+      const response = await apiRequest(`/orders/user/${userId}`);
+      const orders = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.orders)
+          ? response.orders
+          : [];
+      const latest = [...orders]
+        .filter((candidate) => Number(candidate?.userId) === userId)
+        .sort(
+          (left, right) =>
+            new Date(right?.createdAt || 0) -
+            new Date(left?.createdAt || 0)
+        )[0];
+      const recoveredOrder = normalizeBackendOrder(latest);
+
+      if (!cancelled && recoveredOrder) {
+        backendOrderId = recoveredOrder.backendOrderId;
+        localStorage.setItem(
+          "smartdine_current_order",
+          JSON.stringify(recoveredOrder)
+        );
+        setOrder(recoveredOrder);
+      }
+    } catch (error) {
+      console.error("Failed to recover the order from the server:", error);
+    }
+  };
+
+  loadLatestOrder();
+
+  if (!backendOrderId) {
+    return () => {
+      cancelled = true;
+    };
+  }
 
   if (order.backendOrderId !== backendOrderId) {
     const recoveredOrder = {
@@ -200,6 +272,7 @@ export default function OrderTracking() {
   }, 5000);
 
   return () => {
+    cancelled = true;
     clearInterval(interval);
     window.removeEventListener(
       "smartdine-order-updated",

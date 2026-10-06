@@ -47,6 +47,30 @@ function readOrder() {
   }
 }
 
+const BACKEND_STATUS_MAP = {
+  PLACED: "Order Placed",
+  ACCEPTED: "Kitchen Accepted",
+  PREPARING: "Preparing",
+  READY: "Ready",
+  SERVED: "Served",
+};
+
+function toKitchenOrder(savedOrder) {
+  const backendOrderId = Number(savedOrder?.id);
+  if (!Number.isInteger(backendOrderId) || backendOrderId <= 0) {
+    return null;
+  }
+
+  return {
+    ...savedOrder,
+    id: `SD-${String(backendOrderId).padStart(6, "0")}`,
+    backendOrderId,
+    table: savedOrder.table ?? savedOrder.tableNumber ?? "Not selected",
+    status: BACKEND_STATUS_MAP[savedOrder.status] || savedOrder.status,
+    items: savedOrder.items || [],
+  };
+}
+
 
 function statusLabel(status) {
   const labels = {
@@ -102,6 +126,36 @@ export default function Kitchen() {
     the current SmartDine order.
   */
   useEffect(() => {
+    const loadServerOrder = async () => {
+      try {
+        const response = await apiRequest("/orders");
+        const orders = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.orders)
+            ? response.orders
+            : [];
+        const latestOrder = [...orders]
+          .filter((candidate) => !["SERVED", "PAID"].includes(candidate?.status))
+          .sort(
+            (left, right) =>
+              new Date(right?.createdAt || 0) -
+              new Date(left?.createdAt || 0)
+          )[0];
+        const normalizedOrder = toKitchenOrder(latestOrder);
+
+        if (normalizedOrder) {
+          setOrder(normalizedOrder);
+          localStorage.setItem(
+            "smartdine_current_order",
+            JSON.stringify(normalizedOrder)
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load kitchen orders:", error);
+      }
+    };
+
+    loadServerOrder();
     const interval = setInterval(() => {
       setNow(Date.now());
 
@@ -114,7 +168,8 @@ export default function Kitchen() {
       } catch {
         setOrder(null);
       }
-    }, 1000);
+      loadServerOrder();
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);

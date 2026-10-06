@@ -9,6 +9,19 @@ npm install
 npm run dev
 ```
 
+## Shared order tracking
+
+Orders and status updates are stored by the API, not by the browser. Both
+laptops must use the same reachable API server. Create a `.env` file from
+`.env.example` and set `VITE_API_BASE_URL` to the backend's LAN or deployed
+URL, for example `http://192.168.1.20:8080/api`, before building or starting
+Vite. Do not leave the default `localhost` value when the laptops are
+different machines.
+
+The customer tracking page and kitchen screen recover active orders from the
+API, so they no longer require the order to have been created in that
+laptop's browser storage.
+
 ## Included
 
 - Premium light luxury / glassmorphism visual system
